@@ -1,0 +1,7 @@
+{
+  "name": "persona-onboarding-bench",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-20",
+  "ai": { "binding": "AI" },
+  "vars": { "TEXT_MODEL": "@cf/zai-org/glm-5.3-flash" }
+}

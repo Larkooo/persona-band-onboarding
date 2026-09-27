@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "persona-onboarding",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "routes": [{ "pattern": "onboarding.nasrdjegh.com", "custom_domain": true }],
+  "ai": { "binding": "AI" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION", "class_name": "OnboardingSession" },
+      { "name": "VOICE", "class_name": "VoiceRegistry" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OnboardingSession", "VoiceRegistry"] }],
+  "ratelimits": [
+    { "name": "MSG_LIMIT", "namespace_id": "202609271", "simple": { "limit": 40, "period": 60 } },
+    { "name": "CALL_LIMIT", "namespace_id": "202609272", "simple": { "limit": 6, "period": 60 } }
+  ],
+  "vars": {
+    "TEXT_MODEL": "@cf/zai-org/glm-5.3-flash",
+    "PUBLIC_URL": "https://onboarding.nasrdjegh.com",
+    "VOICE_LLM": "gemini-2.5-flash",
+    "VOICE_TTS_MODEL": "eleven_flash_v2",
+    "VOICE_ID": "",
+    "LOCAL_VOICE": "athena"
+  }
+  // Secret: ELEVENLABS_API_KEY (voice calls). Without it the demo runs text-only.
+}
