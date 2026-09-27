@@ -22,6 +22,8 @@ export interface CallRecord {
   detail?: string;
   /** We placed this call because the previous one dropped. */
   callback?: boolean;
+  /** Consecutive silence check-ins on the built-in voice, reset when the user speaks. */
+  silences?: number;
   transcript: { role: "user" | "agent"; text: string }[];
 }
 

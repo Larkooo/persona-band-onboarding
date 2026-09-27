@@ -20,7 +20,7 @@ const OUTPUT = `
 # How to respond
 You are speaking through a voice pipeline without tools. Wherever the instructions above mention a tool, set the matching field instead. Reply with a single JSON object and nothing else:
 {"say": string, "user_name": string or null, "help_with": string or null, "send_gmail_link": boolean, "decline_gmail": boolean, "end_call": boolean}
-- say: exactly what you say next. At most two short spoken sentences, under 35 words in total.
+- say: exactly what you say next. At most two short spoken sentences, under 35 words in total. Never repeat something you already said on this call, and never introduce yourself again.
 - user_name: set when they just told you their name (replaces save_user_name).
 - help_with: a short summary when they just told you something they want help with (replaces save_help_request).
 - send_gmail_link: true to send the Connect Gmail link now (replaces send_gmail_link). Your "say" should tell them it just arrived in their messages.
@@ -117,7 +117,12 @@ export async function transcribe(env: Env, audio: ArrayBuffer, contentType: stri
     punctuate: true,
     language: "en",
   });
-  return String(out?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "").trim();
+  const alt = out?.results?.channels?.[0]?.alternatives?.[0];
+  const text = String(alt?.transcript ?? "").trim();
+  const confidence = typeof alt?.confidence === "number" ? alt.confidence : 1;
+  // Room noise tends to come back as one or two low-confidence words like "Hello" or "Yeah".
+  if (text.split(/\s+/).length <= 2 && confidence < 0.6) return "";
+  return text;
 }
 
 /** MP3 stream for a line of speech. */

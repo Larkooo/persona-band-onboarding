@@ -74,6 +74,32 @@ function mergeHelp(existing: string | null, next: string): string {
   return [...parts, next].join("; ").slice(0, 240);
 }
 
+/** What to re-ask on a call, phrased gently, for the first open step. */
+function spokenReask(s: SessionState): string {
+  const p = s.profile;
+  if (!p.userName) return "When you're ready, just tell me your name.";
+  if (!p.helpWith) return "Whenever you're ready, tell me one thing I could help you with.";
+  if (p.gmail.status === "none" && !s.declined.gmail) return "If you'd like, I can send you the link to connect your Gmail.";
+  return "I'm here whenever you're ready.";
+}
+
+/**
+ * Remove sentences that re-introduce the assistant or mostly repeat something it already said on this call.
+ * Returns an empty string when nothing new is left.
+ */
+function dropRepeats(say: string, transcript: CallRecord["transcript"], name: string): string {
+  const said = transcript.filter((t) => t.role === "agent").map((t) => wordSet(t.text));
+  const intro = new RegExp(`\\b(this is|it's|it is|i'm|i am) ${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b|your new (personal )?assistant|thanks for picking up`, "i");
+  const sentences = say.match(/[^.!?]+[.!?]*/g) ?? [say];
+  const kept = sentences.filter((sentence) => {
+    if (said.length && intro.test(sentence)) return false;
+    const w = wordSet(sentence);
+    if (w.size < 3) return true;
+    return !said.some((prev) => [...w].filter((x) => prev.has(x)).length / w.size > 0.75);
+  });
+  return kept.join(" ").replace(/\s+/g, " ").trim();
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const NON_GOOGLE = /@(outlook|hotmail|live|msn|yahoo|ymail|icloud|me|mac|aol|proton|protonmail|pm|zoho|gmx|yandex|mail)\./i;
 
@@ -370,16 +396,23 @@ export class OnboardingSession extends DurableObject<Env> {
       return { ok: true, say: firstMessage };
     }
     if (kind === "silence") {
-      // Deterministic: one check-in, then a polite exit. Models tend to talk past "[silence]" notes.
-      const last = c.transcript[c.transcript.length - 1];
-      const again = last?.role === "agent" && last.text.startsWith("Are you still there");
-      const say = again
-        ? "It sounds like now might not be a good time. I will follow up with you by text. Talk soon."
-        : `Are you still there${this.state.profile.userName ? `, ${this.state.profile.userName}` : ""}? Take your time.`;
+      // Deterministic ladder with distinct wording each time. Models tend to restart the greeting instead.
+      c.silences = (c.silences ?? 0) + 1;
+      const n = this.state.profile.agentName ?? DEFAULT_AGENT_NAME;
+      const step = spokenReask(this.state);
+      const said = new Set(c.transcript.filter((t) => t.role === "agent").map((t) => t.text));
+      const hello = [`Hey, it's ${n}. Can you hear me okay?`, "Are you still with me?"].find((l) => !said.has(l)) ?? "Are you still with me?";
+      const ladder = [
+        hello,
+        `I'm just checking back in. ${step}`,
+        "It sounds like now might not be a good time. I'll text you so we can finish getting you set up. Talk soon.",
+      ];
+      const say = ladder[Math.min(c.silences, ladder.length) - 1];
       c.transcript.push({ role: "agent", text: say });
       await this.save();
-      return { ok: true, say, end: again };
+      return { ok: true, say, end: c.silences >= ladder.length };
     }
+    c.silences = 0;
     if (kind === "user") c.transcript.push({ role: "user", text });
     else c.transcript.push({ role: "user", text: `[note: ${text}]` });
 
@@ -390,7 +423,8 @@ export class OnboardingSession extends DurableObject<Env> {
     if (t.help_with) await this.tool("save_help_request", { summary: t.help_with });
     if (t.decline_gmail) await this.tool("decline_gmail", {});
     if (t.send_gmail_link && this.state.profile.gmail.status !== "connected") await this.tool("send_gmail_link", {});
-    let say = t.say;
+    let say = dropRepeats(t.say, cur.transcript, this.state.profile.agentName ?? DEFAULT_AGENT_NAME);
+    if (!say) say = `Can you hear me okay? ${spokenReask(this.state)}`;
     if (!t.end_call && !say.includes("?")) {
       const step = stepQuestion(this.state, "voice");
       if (step && !step.covered.test(say)) say = `${say} ${step.q}`;
