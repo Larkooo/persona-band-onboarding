@@ -28,7 +28,7 @@
     "VOICE_LLM": "gemini-2.5-flash",
     "VOICE_TTS_MODEL": "eleven_flash_v2",
     "VOICE_ID": "",
-    "LOCAL_VOICE": "athena"
+    "LOCAL_VOICE": "luna"
   }
   // Secret: ELEVENLABS_API_KEY (voice calls). Without it the demo runs text-only.
 }

@@ -127,7 +127,7 @@ export async function transcribe(env: Env, audio: ArrayBuffer, contentType: stri
 
 /** MP3 stream for a line of speech. */
 export async function speakStream(env: Env, text: string): Promise<ReadableStream | Uint8Array> {
-  const out: any = await (env.AI as any).run(TTS_MODEL, { text, speaker: env.LOCAL_VOICE || "athena", encoding: "mp3" });
+  const out: any = await (env.AI as any).run(TTS_MODEL, { text, speaker: env.LOCAL_VOICE || "luna", encoding: "mp3" });
   if (out instanceof ReadableStream || out instanceof Uint8Array) return out;
   if (out instanceof ArrayBuffer) return new Uint8Array(out);
   if (typeof out?.audio === "string") return Uint8Array.from(atob(out.audio), (c) => c.charCodeAt(0));
